@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% set active = 'tags' %}
+{% block title %}Tags — WVS{% endblock %}
+{% block page_title %}Tags (End Devices){% endblock %}
+{% block breadcrumb %}Configure / Tags{% endblock %}
+
+{% block content %}
+<div class="grid-2" style="margin-bottom:16px">
+
+  <div class="card">
+    <div class="card-title">Add Tag</div>
+    <form method="POST" action="/configuration/tags/add">
+      <div class="form-group">
+        <label class="form-label">Tag Node ID</label>
+        <input class="form-control" type="text" name="node_id"
+               placeholder="e.g. E52" required/>
+        <div class="muted mono" style="font-size:10px;margin-top:5px">
+          Must match the address burned into the board (set with both switches)
+        </div>
+      </div>
+      <button class="btn btn-primary" type="submit">Add Tag</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Assign Sensor to Channel</div>
+    <form method="POST" action="/configuration/tags/assign_sensor">
+      <div class="form-group">
+        <label class="form-label">Tag Node ID</label>
+        <input class="form-control" type="text" name="node_id" placeholder="E52" required/>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Channel</label>
+          <input class="form-control" type="number" name="channel"
+                 min="0" max="7" value="0" required/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Sensor Type</label>
+          <select class="form-control" name="sensor_type_id" required>
+            {% for st in sensor_types %}
+            <option value="{{ st.sensor_type_id }}">
+              {{ st.sensor_type_id }} — {{ st.sensor_desc }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary" type="submit">Assign Sensor</button>
+    </form>
+  </div>
+
+</div>
+
+<div class="card">
+  <div class="card-title">Configured Tags</div>
+  {% if tags %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Tag ID</th><th>Channel</th><th>Sensor Type</th></tr>
+      </thead>
+      <tbody>
+        {% for t in tags %}
+        <tr>
+          <td class="mono">{{ t.node_id }}</td>
+          <td class="mono">{{ t.channel if t.channel is not none else '—' }}</td>
+          <td>
+            {% if t.sensor_type_id %}
+            <span class="badge badge-cyan">{{ t.sensor_type_id }}</span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="muted mono" style="font-size:11px;padding:8px 0">No tags configured yet.</div>
+  {% endif %}
+</div>
+{% endblock %}

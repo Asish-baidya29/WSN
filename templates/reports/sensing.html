@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% block title %}Reports — WVS{% endblock %}
+{% block page_title %}Sensor Reports{% endblock %}
+{% block breadcrumb %}Reports / Sensing{% endblock %}
+
+{% block head %}
+<style>
+  .report-layout { display: grid; grid-template-columns: 260px 1fr; gap: 16px; }
+
+  /* Filter panel */
+  .filter-panel { display: flex; flex-direction: column; gap: 12px; }
+
+  /* Gap selector */
+  .gap-options { display: flex; flex-direction: column; gap: 6px; }
+  .gap-opt {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; background: var(--bg3);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    cursor: pointer; transition: all 0.15s; font-family: var(--mono); font-size: 12px; color: var(--text2);
+  }
+  .gap-opt:hover { border-color: var(--accent); color: var(--accent); }
+  .gap-opt.selected { border-color: var(--accent); background: rgba(0,229,255,0.08); color: var(--accent); }
+  .gap-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border2); }
+  .gap-opt.selected .gap-dot { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+
+  /* Data table */
+  #report-table { font-size: 12px; }
+  #report-table th { font-size: 9px; }
+  #report-table td { padding: 7px 12px; }
+
+  /* Summary bar */
+  .summary-row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .sum-tile {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 14px;
+    font-family: var(--mono); font-size: 10px; color: var(--text3);
+  }
+  .sum-tile .sv { font-family: var(--cond); font-size: 18px; font-weight: 600; color: var(--text); display: block; margin-top: 2px; }
+
+  /* Loading state */
+  .loading-bar {
+    height: 2px; background: var(--accent);
+    animation: loadbar 1s ease infinite alternate;
+    border-radius: 1px; margin-bottom: 12px;
+    display: none;
+  }
+  @keyframes loadbar { from{width:20%} to{width:90%} }
+  .loading-bar.active { display: block; }
+
+  /* Export btn */
+  #export-btn { margin-left: auto; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="report-layout">
+
+  <!-- Filter panel -->
+  <div class="filter-panel">
+    <div class="card">
+      <div class="card-title">Node</div>
+      <select class="form-control" id="node-select">
+        <option value="">— Select node —</option>
+        {% for n in nodes %}
+        <option value="{{ n.node_id }}">{{ n.node_id }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Time Gap Filter</div>
+      <div class="gap-options" id="gap-options">
+        {% for g in gap_options %}
+        <div class="gap-opt {% if g==0 %}selected{% endif %}"
+             data-gap="{{ g }}" onclick="selectGap(this, {{ g }})">
+          <div class="gap-dot"></div>
+          {{ 'All rows' if g==0 else 'Every ' + g|string + ' min' }}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Limit</div>
+      <select class="form-control" id="limit-select">
+        <option value="100">100 rows</option>
+        <option value="500" selected>500 rows</option>
+        <option value="1000">1000 rows</option>
+      </select>
+    </div>
+
+    <button class="btn btn-primary" onclick="loadReport()" style="width:100%">
+      Load Report
+    </button>
+  </div>
+
+  <!-- Report area -->
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <div class="loading-bar" id="loading-bar"></div>
+
+    <!-- Summary -->
+    <div class="summary-row" id="summary-row" style="display:none">
+      <div class="sum-tile">Rows <span class="sv" id="sum-rows">—</span></div>
+      <div class="sum-tile" style="border-color:rgba(255,80,80,0.3)">Min Temp <span class="sv" id="sum-temp-min">—</span></div>
+      <div class="sum-tile" style="border-color:rgba(255,80,80,0.3)">Max Temp <span class="sv" id="sum-temp-max">—</span></div>
+      <div class="sum-tile" style="border-color:rgba(255,80,80,0.3)">Avg Temp <span class="sv" id="sum-temp-avg">—</span></div>
+      <div class="sum-tile" style="border-color:rgba(80,180,255,0.3)">Min Hum <span class="sv" id="sum-hum-min">—</span></div>
+      <div class="sum-tile" style="border-color:rgba(80,180,255,0.3)">Max Hum <span class="sv" id="sum-hum-max">—</span></div>
+      <div class="sum-tile" style="border-color:rgba(80,180,255,0.3)">Avg Hum <span class="sv" id="sum-hum-avg">—</span></div>
+      <button class="btn btn-outline btn-sm" id="export-btn" onclick="exportCSV()">Export CSV</button>
+    </div>
+
+    <div class="card" style="flex:1">
+      <div class="flex-between mb-16">
+        <div class="card-title" style="margin-bottom:0">Data</div>
+        <span class="muted mono" style="font-size:10px" id="result-info">Select a node to load data</span>
+      </div>
+      <div class="table-wrap">
+        <table id="report-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Channel</th>
+              <th>Sensor</th>
+              <th>Raw</th>
+              <th>Value</th>
+              <th>Unit</th>
+            </tr>
+          </thead>
+          <tbody id="report-tbody">
+            <tr><td colspan="6" class="muted mono" style="font-size:11px">No data loaded.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let selectedGap = 0;
+  let reportData  = [];
+
+  function selectGap(el, gap) {
+    document.querySelectorAll('.gap-opt').forEach(e => e.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedGap = gap;
+  }
+
+  async function loadReport() {
+    const nodeId = document.getElementById('node-select').value;
+    if (!nodeId) { alert('Please select a node.'); return; }
+    const limit = document.getElementById('limit-select').value;
+
+    document.getElementById('loading-bar').classList.add('active');
+    document.getElementById('result-info').textContent = 'Loading…';
+
+    try {
+      const r = await fetch(
+        `/reports/api/sensor_history?node_id=${encodeURIComponent(nodeId)}&gap_minutes=${selectedGap}&limit=${limit}`
+      );
+      reportData = await r.json();
+      renderTable(reportData);
+      updateSummary(reportData);
+    } finally {
+      document.getElementById('loading-bar').classList.remove('active');
+    }
+  }
+
+  function renderTable(data) {
+    const tbody = document.getElementById('report-tbody');
+    document.getElementById('result-info').textContent = data.length + ' rows';
+
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="muted mono" style="font-size:11px">No data found.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(row => {
+      const raw = parseFloat(row.node_data);
+      const val = (row.real_value != null && !isNaN(parseFloat(row.real_value)))
+        ? parseFloat(row.real_value).toFixed(2)
+        : raw.toFixed(0);
+      const unit = row.sensor_unit || (row.sensor_type_id === 'T' ? 'C' : row.sensor_type_id === 'H' ? '%' : '');
+      return `<tr>
+        <td class="mono" style="font-size:11px">${row.receive_time}</td>
+        <td class="mono">${row.channel}</td>
+        <td><span class="badge badge-cyan">${row.sensor_type_id}</span></td>
+        <td class="mono muted">${raw.toFixed(0)}</td>
+        <td class="mono" style="color:var(--text)">${val}</td>
+        <td class="mono muted">${unit}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function updateSummary(data) {
+    if (!data.length) {
+      document.getElementById('summary-row').style.display = 'none';
+      return;
+    }
+    document.getElementById('summary-row').style.display = 'flex';
+    document.getElementById('sum-rows').textContent = data.length;
+
+    const toVal = r => {
+      const v = parseFloat(r.real_value);
+      return isNaN(v) ? parseFloat(r.node_data) : v;
+    };
+    const temp = data.filter(r => r.sensor_type_id === 'T').map(toVal).filter(v => !isNaN(v));
+    const hum  = data.filter(r => r.sensor_type_id === 'H').map(toVal).filter(v => !isNaN(v));
+
+    const stats = (arr) => arr.length ? {
+      min: Math.min(...arr).toFixed(1),
+      max: Math.max(...arr).toFixed(1),
+      avg: (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1)
+    } : { min: '—', max: '—', avg: '—' };
+
+    const t = stats(temp), h = stats(hum);
+    document.getElementById('sum-temp-min').textContent = t.min;
+    document.getElementById('sum-temp-max').textContent = t.max;
+    document.getElementById('sum-temp-avg').textContent = t.avg;
+    document.getElementById('sum-hum-min').textContent  = h.min;
+    document.getElementById('sum-hum-max').textContent  = h.max;
+    document.getElementById('sum-hum-avg').textContent  = h.avg;
+  }
+
+  /* ── WebSocket live updates ── */
+  window.onWsMessage = function(msg) {
+    if (msg.type !== 'sensor_update') return;
+    const s = msg.data;
+    // Only auto-append if viewing this node
+    if (s.node_id !== document.getElementById('node-select').value) return;
+    const newRow = {
+      channel: s.channel,
+      node_data: s.raw_value,
+      receive_time: s.receive_time,
+      sensor_type_id: s.sensor_type,
+      real_value: s.real_value,
+      sensor_unit: s.sensor_type === 'T' ? 'C' : s.sensor_type === 'H' ? '%' : ''
+    };
+    reportData.unshift(newRow);
+    if (reportData.length > 1000) reportData.length = 1000;
+    renderTable(reportData);
+    updateSummary(reportData);
+  };
+
+  function exportCSV() {
+    if (!reportData.length) return;
+    const headers = ['Time','Channel','Sensor','Raw','Value','Unit'];
+    const rows = reportData.map(r => [
+      r.receive_time, r.channel, r.sensor_type_id,
+      r.node_data, r.real_value || r.node_data, r.sensor_unit || ''
+    ]);
+    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = 'wsn_report_' + new Date().toISOString().slice(0,10) + '.csv';
+    a.click();
+  }
+</script>
+{% endblock %}

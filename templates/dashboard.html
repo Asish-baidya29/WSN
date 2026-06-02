@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — WVS{% endblock %}
+{% block page_title %}Live Dashboard{% endblock %}
+{% block breadcrumb %}WSN-EK / Monitor{% endblock %}
+
+{% block head %}
+<style>
+  .dash-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 16px;
+  }
+  .dash-full { grid-column: 1 / -1; }
+
+  /* Node status tiles */
+  .node-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .node-tile {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px;
+    display: flex; flex-direction: column; gap: 6px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .node-tile:hover { border-color: var(--accent); box-shadow: var(--glow); }
+  .node-tile.active { border-color: rgba(0,230,118,0.4); }
+  .node-tile.inactive { opacity: 0.5; }
+  .nt-id { font-family: var(--mono); font-size: 13px; color: var(--text); }
+  .nt-parent { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+  .nt-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--text3); margin-left: auto;
+  }
+  .nt-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .nt-header { display: flex; align-items: center; }
+  .nt-type { font-family: var(--mono); font-size: 9px; color: var(--text3); letter-spacing: 1px; }
+
+  /* Sensor readings */
+  .sensor-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .sensor-row:last-child { border-bottom: none; }
+  .sr-node { font-family: var(--mono); font-size: 12px; color: var(--text2); width: 80px; flex-shrink: 0; }
+  .sr-type { font-family: var(--mono); font-size: 10px; color: var(--text3); width: 32px; flex-shrink: 0; }
+  .sr-bar { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .sr-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.6s ease; }
+  .sr-value { font-family: var(--cond); font-size: 18px; font-weight: 600; color: var(--text); width: 80px; text-align: right; }
+  .sr-unit { font-family: var(--mono); font-size: 10px; color: var(--text3); width: 30px; }
+  .sr-time { font-family: var(--mono); font-size: 10px; color: var(--text3); width: 80px; text-align: right; }
+
+  /* Event feed */
+  .event-feed { max-height: 280px; overflow-y: auto; }
+  .event-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--border);
+    animation: slidein 0.3s ease both;
+  }
+  @keyframes slidein { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:none} }
+  .event-item:last-child { border-bottom: none; }
+  .ev-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+  .ev-dot.sensor  { background: var(--accent); }
+  .ev-dot.node    { background: var(--green); }
+  .ev-dot.message { background: var(--amber); }
+  .ev-body { flex: 1; }
+  .ev-text { font-size: 12px; color: var(--text2); line-height: 1.4; }
+  .ev-time { font-family: var(--mono); font-size: 10px; color: var(--text3); margin-top: 2px; }
+
+  /* Profile links */
+  .profile-list { display: flex; flex-direction: column; gap: 8px; }
+  .profile-link {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; background: var(--bg3);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    text-decoration: none; color: var(--text); transition: all 0.15s;
+  }
+  .profile-link:hover { border-color: var(--accent); color: var(--accent); }
+  .pl-name { font-family: var(--cond); font-size: 15px; font-weight: 600; }
+  .pl-arrow { font-family: var(--mono); color: var(--text3); font-size: 14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Stats row -->
+<div class="stats-row mb-24" id="stats-row">
+  <div class="stat-tile accent">
+    <div class="st-label">Active Nodes</div>
+    <div class="st-value" id="stat-active">—</div>
+  </div>
+  <div class="stat-tile">
+    <div class="st-label">Total Nodes</div>
+    <div class="st-value" id="stat-total">—</div>
+  </div>
+  <div class="stat-tile">
+    <div class="st-label">Events Today</div>
+    <div class="st-value" id="stat-events">0</div>
+  </div>
+  <div class="stat-tile">
+    <div class="st-label">System</div>
+    <div class="st-value" style="font-size:18px" id="stat-sys">ONLINE</div>
+  </div>
+</div>
+
+<div class="dash-grid">
+
+  <!-- Node status -->
+  <div class="card">
+    <div class="card-title">Node Status</div>
+    <div class="node-grid" id="node-grid">
+      <div class="muted mono" style="font-size:11px;">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Live sensor readings -->
+  <div class="card">
+    <div class="card-title">Latest Sensor Readings</div>
+    <div id="sensor-list">
+      <div class="muted mono" style="font-size:11px;">Waiting for data…</div>
+    </div>
+  </div>
+
+  <!-- Event log -->
+  <div class="card">
+    <div class="card-title">Event Feed</div>
+    <div class="event-feed" id="event-feed">
+      <div class="muted mono" style="font-size:11px;">No events yet.</div>
+    </div>
+  </div>
+
+  <!-- Floor plans -->
+  <div class="card">
+    <div class="card-title">Floor Plans</div>
+    <div class="profile-list" id="profile-list">
+      <div class="muted mono" style="font-size:11px;">Loading…</div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let eventCount = 0;
+  const sensorCache = {};   // node_id+channel → latest reading
+  const nodeCache   = {};   // node_id → {parent, active}
+
+  /* ── Load initial data ── */
+  async function loadNodes() {
+    const r = await fetch('/view/api/nodes/live');
+    const nodes = await r.json();
+    nodes.forEach(n => nodeCache[n.node_id] = n);
+    renderNodes();
+    document.getElementById('stat-active').textContent =
+      nodes.filter(n => n.is_node_active === 'Y').length;
+    document.getElementById('stat-total').textContent = nodes.length;
+  }
+
+  async function loadProfiles() {
+    const r = await fetch('/view/api/profiles');
+    const profiles = await r.json();
+    const el = document.getElementById('profile-list');
+    if (!profiles.length) {
+      el.innerHTML = '<div class="muted mono" style="font-size:11px">No profiles configured. <a href="/configuration/profiles" style="color:var(--accent)">Add one →</a></div>';
+      return;
+    }
+    el.innerHTML = profiles.map(p => `
+      <a href="/view/map/${p.profile_id}" class="profile-link">
+        <span class="pl-name">${p.profile_desc}</span>
+        <span class="pl-arrow">→</span>
+      </a>
+    `).join('');
+  }
+
+  /* ── Render ── */
+  function renderNodes() {
+    const grid = document.getElementById('node-grid');
+    const entries = Object.values(nodeCache);
+    if (!entries.length) {
+      grid.innerHTML = '<div class="muted mono" style="font-size:11px">No nodes detected yet.</div>';
+      return;
+    }
+    grid.innerHTML = entries.map(n => `
+      <div class="node-tile ${n.is_node_active==='Y'?'active':'inactive'}"
+           onclick="showNodeSensor('${n.node_id}')">
+        <div class="nt-header">
+          <span class="nt-type">${n.node_id.startsWith('TE')?'TAG':n.node_id.startsWith('TR')?'ROUTER':'NODE'}</span>
+          <div class="nt-dot ${n.is_node_active==='Y'?'on':''}"></div>
+        </div>
+        <div class="nt-id">${n.node_id}</div>
+        <div class="nt-parent">via ${n.parent_node_id||'—'}</div>
+      </div>
+    `).join('');
+  }
+
+  function renderSensors() {
+    const el = document.getElementById('sensor-list');
+    const entries = Object.values(sensorCache);
+    if (!entries.length) {
+      el.innerHTML = '<div class="muted mono" style="font-size:11px">Waiting for data…</div>';
+      return;
+    }
+    el.innerHTML = entries.map(s => {
+      const pct = Math.min(100, Math.max(0, parseFloat(s.real_value)||0));
+      const fillColor =
+        s.sensor_type==='T' ? '#ff6d00' :
+        s.sensor_type==='H' ? '#00b0ff' :
+        s.sensor_type==='CO'? '#ff1744' :
+        s.sensor_type==='A' ? '#00e676' : 'var(--accent)';
+      return `
+      <div class="sensor-row">
+        <span class="sr-node">${s.node_id}</span>
+        <span class="sr-type">${s.sensor_type}</span>
+        <div class="sr-bar"><div class="sr-fill" style="width:${pct}%;background:${fillColor}"></div></div>
+        <span class="sr-value">${parseFloat(s.real_value).toFixed(1)}</span>
+        <span class="sr-unit">${unitFor(s.sensor_type)}</span>
+        <span class="sr-time">${s.receive_time.slice(11,19)}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function unitFor(t) {
+    return {T:'°C',H:'%',CO:'ppm',A:'%',B:'%'}[t] || '';
+  }
+
+  function pushEvent(cls, text) {
+    eventCount++;
+    document.getElementById('stat-events').textContent = eventCount;
+    const feed = document.getElementById('event-feed');
+    const item = document.createElement('div');
+    item.className = 'event-item';
+    item.innerHTML = `
+      <div class="ev-dot ${cls}"></div>
+      <div class="ev-body">
+        <div class="ev-text">${text}</div>
+        <div class="ev-time">${new Date().toTimeString().slice(0,8)}</div>
+      </div>`;
+    // prepend
+    if (feed.firstChild && feed.firstChild.classList &&
+        feed.firstChild.classList.contains('muted')) feed.innerHTML = '';
+    feed.insertBefore(item, feed.firstChild);
+    // trim to 50
+    while (feed.children.length > 50) feed.removeChild(feed.lastChild);
+  }
+
+  async function showNodeSensor(nodeId) {
+    const r = await fetch(`/view/api/sensor/latest/${nodeId}`);
+    const data = await r.json();
+    data.forEach(s => {
+      sensorCache[nodeId+'_'+s.channel] = {...s, node_id: nodeId};
+    });
+    renderSensors();
+  }
+
+  /* ── WebSocket handler ── */
+  window.onWsMessage = function(msg) {
+    if (msg.type === 'sensor_update') {
+      const s = msg.data;
+      sensorCache[s.node_id+'_'+s.channel] = s;
+      renderSensors();
+      pushEvent('sensor', `Sensor [${s.sensor_type}] on <b>${s.node_id}</b> → ${s.real_value} ${unitFor(s.sensor_type)}`);
+    }
+    else if (msg.type === 'node_update') {
+      const n = msg.data;
+      nodeCache[n.node_id] = n;
+      renderNodes();
+      const active = Object.values(nodeCache).filter(x=>x.is_active).length;
+      document.getElementById('stat-active').textContent = active;
+      pushEvent('node', `Node <b>${n.node_id}</b> seen via <b>${n.parent_node_id}</b>`);
+    }
+    else if (msg.type === 'message_event') {
+      const m = msg.data;
+      pushEvent('message', `Message <b>${m.message_type}</b> from <b>${m.node_id}</b>`);
+    }
+  };
+
+  loadNodes();
+  loadProfiles();
+</script>
+{% endblock %}

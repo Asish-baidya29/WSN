@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Messaging — WVS{% endblock %}
+{% block page_title %}Messaging{% endblock %}
+{% block breadcrumb %}Messaging / Device Control{% endblock %}
+
+{% block head %}
+<style>
+  .msg-grid { display: grid; grid-template-columns: 340px 1fr; gap: 16px; }
+
+  /* Command sender */
+  .cmd-panel { display: flex; flex-direction: column; gap: 14px; }
+  .cmd-badge {
+    display: inline-block; padding: 6px 14px; border-radius: 2px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: 1px;
+    cursor: pointer; border: 1px solid var(--border2);
+    background: var(--bg3); color: var(--text2); transition: all 0.15s;
+    text-align: center;
+  }
+  .cmd-badge:hover { border-color: var(--accent); color: var(--accent); }
+  .cmd-badge.selected { border-color: var(--accent); background: rgba(0,229,255,0.1); color: var(--accent); }
+  .cmd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  /* Delivery status */
+  .dl-status { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; }
+  .dl-WRITTEN_TO_PORT        { color: var(--text3); }
+  .dl-RECEIVED_BY_COORDINATOR{ color: var(--amber); }
+  .dl-RECEIVED_BY_END_DEVICE { color: var(--green); }
+  .dl-FAILED                 { color: var(--red); }
+
+  /* incoming messages pulse */
+  .new-msg { animation: flashrow 1s ease; }
+  @keyframes flashrow { from{background:rgba(255,171,0,0.15)} to{background:transparent} }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="msg-grid">
+
+  <!-- Left: send command -->
+  <div class="cmd-panel">
+    <div class="card">
+      <div class="card-title">Send Command to Device</div>
+      <form method="POST" action="/messaging/send" id="cmd-form">
+        <div class="form-group">
+          <label class="form-label">Target Node</label>
+          <select class="form-control" name="node_id" required>
+            <option value="">— Select device —</option>
+            {% for n in nodes %}
+            <option value="{{ n.node_id }}">{{ n.node_id }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Command</label>
+          <input type="hidden" name="action_type_id" id="selected-action" required/>
+          <div class="cmd-grid" id="cmd-grid">
+            {% for a in action_types %}
+            {% if a.action_type_desc not in ['SMS', 'Assign Router Name', 'Change Tag Beacon Interval'] %}
+            <div class="cmd-badge" data-id="{{ a.action_type_id }}"
+                 onclick="selectCmd(this, {{ a.action_type_id }})">
+              {{ a.action_type_desc }}
+            </div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+        <button class="btn btn-primary" type="submit" style="width:100%">
+          Send Command →
+        </button>
+      </form>
+    </div>
+
+    <!-- Quick status -->
+    <div class="card">
+      <div class="card-title">Last Delivery Status</div>
+      <div id="last-delivery" class="muted mono" style="font-size:11px">Waiting…</div>
+    </div>
+  </div>
+
+  <!-- Right: tables -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+
+    <!-- Messages FROM devices -->
+    <div class="card">
+      <div class="card-title">Messages from Devices</div>
+      <div class="table-wrap" style="max-height:260px;overflow-y:auto">
+        <table>
+          <thead><tr><th>Node</th><th>Message</th><th>Time</th></tr></thead>
+          <tbody id="from-device-tbody">
+            {% for m in recent_messages %}
+            <tr>
+              <td class="mono">{{ m.node_id }}</td>
+              <td><span class="badge badge-amber">{{ m.message_desc }}</span></td>
+              <td class="mono muted" style="font-size:11px">{{ m.receive_time }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="muted mono" style="font-size:11px">No messages yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Delivery log -->
+    <div class="card">
+      <div class="card-title">Command Delivery Log</div>
+      <div class="table-wrap" style="max-height:260px;overflow-y:auto">
+        <table>
+          <thead><tr><th>Node</th><th>Queue ID</th><th>Status</th><th>Time</th></tr></thead>
+          <tbody id="delivery-tbody">
+            {% for d in delivery_log %}
+            <tr>
+              <td class="mono">{{ d.node_id }}</td>
+              <td class="mono">{{ d.message_queue_id }}</td>
+              <td>
+                <span class="dl-status dl-{{ d.delivery_status }}">
+                  {{ d.delivery_status }}
+                </span>
+              </td>
+              <td class="mono muted" style="font-size:11px">{{ d.notification_time }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="muted mono" style="font-size:11px">No commands sent yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function selectCmd(el, id) {
+    document.querySelectorAll('.cmd-badge').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    document.getElementById('selected-action').value = id;
+  }
+
+  // WebSocket: delivery updates and incoming messages
+  window.onWsMessage = function(msg) {
+    if (msg.type === 'delivery_update') {
+      const d = msg.data;
+      const last = document.getElementById('last-delivery');
+      last.innerHTML = `<span class="dl-status dl-${d.status}">${d.node_id} → ${d.status}</span>`;
+
+      // Prepend to delivery table
+      const tbody = document.getElementById('delivery-tbody');
+      const row = tbody.insertRow(0);
+      row.className = 'new-msg';
+      row.innerHTML = `
+        <td class="mono">${d.node_id}</td>
+        <td class="mono">${d.message_queue_id}</td>
+        <td><span class="dl-status dl-${d.status}">${d.status}</span></td>
+        <td class="mono muted" style="font-size:11px">${new Date().toLocaleString()}</td>`;
+      // Remove placeholder
+      const placeholder = tbody.querySelector('[colspan]');
+      if (placeholder) placeholder.parentElement.remove();
+    }
+
+    if (msg.type === 'message_event') {
+      const m = msg.data;
+      const tbody = document.getElementById('from-device-tbody');
+      const row = tbody.insertRow(0);
+      row.className = 'new-msg';
+      row.innerHTML = `
+        <td class="mono">${m.node_id}</td>
+        <td><span class="badge badge-amber">${m.message_type}</span></td>
+        <td class="mono muted" style="font-size:11px">${m.receive_time}</td>`;
+      const placeholder = tbody.querySelector('[colspan]');
+      if (placeholder) placeholder.parentElement.remove();
+    }
+  };
+</script>
+{% endblock %}

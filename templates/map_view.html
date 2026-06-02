@@ -1,0 +1,526 @@
+{% extends "base.html" %}
+{% block title %}Map — {{ profile.profile_desc if profile else 'View' }}{% endblock %}
+{% block page_title %}{{ profile.profile_desc if profile else 'Map View' }}{% endblock %}
+{% block breadcrumb %}Monitor / Floor Plan{% endblock %}
+
+{% block head %}
+<style>
+  .map-shell {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 16px;
+    height: calc(100vh - 100px);
+  }
+  .map-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .map-toolbar {
+    height: 40px; background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 12px; gap: 12px; flex-shrink: 0;
+  }
+  .map-toolbar-label {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--text3); letter-spacing: 1px;
+  }
+  .map-area {
+    flex: 1; position: relative; overflow: hidden;
+    background: #0d1014;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.025) 1px, transparent 1px);
+    background-size: 30px 30px;
+  }
+  #map-img {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    object-fit: contain; opacity: 0.75;
+  }
+  .config-mode-btn {
+    margin-left: auto; padding: 4px 12px;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 1px; text-transform: uppercase;
+    border-radius: 2px; cursor: pointer;
+    border: 1px solid var(--border2);
+    background: transparent; color: var(--text2);
+    transition: all 0.15s;
+  }
+  .config-mode-btn.active { border-color: var(--amber); color: var(--amber); }
+
+  /* Router marker */
+  .router-marker {
+    position: absolute; transform: translate(-50%, -50%);
+    cursor: pointer; z-index: 10;
+  }
+  .router-marker.draggable { cursor: grab; }
+  .router-marker.draggable:active { cursor: grabbing; }
+  .rm-ring {
+    width: 38px; height: 38px; border-radius: 50%;
+    border: 2px solid var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,229,255,0.08);
+    box-shadow: 0 0 10px rgba(0,229,255,0.15);
+    transition: box-shadow 0.2s;
+  }
+  .router-marker:hover .rm-ring { box-shadow: 0 0 20px rgba(0,229,255,0.4); }
+  .rm-ring.inactive { border-color: var(--text3); background: transparent; box-shadow: none; }
+  .rm-inner { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+  .rm-ring.inactive .rm-inner { background: var(--text3); }
+  .rm-label {
+    position: absolute; top: 42px; left: 50%; transform: translateX(-50%);
+    font-family: var(--mono); font-size: 10px; color: var(--text2);
+    white-space: nowrap; background: rgba(10,12,15,0.85);
+    padding: 2px 6px; border-radius: 2px; pointer-events: none;
+  }
+  @keyframes ping {
+    0%   { transform: translate(-50%,-50%) scale(1); opacity: 1; }
+    100% { transform: translate(-50%,-50%) scale(2.5); opacity: 0; }
+  }
+  .router-marker.pinged::after {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    width: 38px; height: 38px; border-radius: 50%;
+    border: 1px solid var(--accent);
+    transform: translate(-50%, -50%);
+    animation: ping 0.8s ease-out forwards;
+    pointer-events: none;
+  }
+
+  /* Tag marker */
+  .tag-marker {
+    position: absolute; transform: translate(-50%, -50%);
+    z-index: 20; cursor: pointer;
+    transition: left 0.6s ease, top 0.6s ease;
+  }
+  .tm-body {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(255,171,0,0.15);
+    border: 2px solid var(--amber);
+    display: flex; align-items: center; justify-content: center;
+    animation: tagpulse 2.5s infinite;
+  }
+  @keyframes tagpulse {
+    0%,100% { box-shadow: 0 0 8px rgba(255,171,0,.3); }
+    50%     { box-shadow: 0 0 18px rgba(255,171,0,.6); }
+  }
+  .tm-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); }
+  .tm-label {
+    position: absolute; top: 32px; left: 50%; transform: translateX(-50%);
+    font-family: var(--mono); font-size: 10px; color: var(--amber);
+    white-space: nowrap; background: rgba(10,12,15,0.85);
+    padding: 2px 6px; border-radius: 2px; pointer-events: none;
+  }
+
+  /* Right panel */
+  .right-panel { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+  .node-list { display: flex; flex-direction: column; gap: 6px; }
+  .nl-item {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 12px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .nl-item:hover { border-color: var(--accent); }
+  .nl-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .nl-id { font-family: var(--mono); font-size: 12px; color: var(--text); }
+  .nl-status { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); }
+  .nl-status.on { background: var(--green); box-shadow: 0 0 5px var(--green); }
+  .nl-via { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+
+  /* Sensor popup */
+  .sensor-popup {
+    background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: var(--radius); padding: 14px;
+  }
+  .sp-title { font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: 1.5px; margin-bottom: 12px; }
+  .sp-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .sp-row:last-child { border-bottom: none; }
+  .sp-type { font-family: var(--mono); font-size: 11px; color: var(--text2); }
+  .sp-val  { font-family: var(--cond); font-size: 22px; font-weight: 600; color: var(--text); }
+  .sp-unit { font-family: var(--mono); font-size: 10px; color: var(--text3); margin-left: 3px; }
+
+  /* Test simulation panel */
+  .sim-panel {
+    background: rgba(255,171,0,0.05);
+    border: 1px solid rgba(255,171,0,0.2);
+    border-radius: var(--radius); padding: 12px;
+  }
+  .sim-title {
+    font-family: var(--mono); font-size: 9px; color: var(--amber);
+    letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sim-title::before {
+    content: '▶'; font-size: 8px;
+  }
+  .sim-btn {
+    width: 100%; padding: 8px; margin-bottom: 6px;
+    background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: var(--radius); cursor: pointer;
+    font-family: var(--mono); font-size: 11px; color: var(--text2);
+    text-align: left; transition: all 0.15s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sim-btn:hover { border-color: var(--amber); color: var(--amber); }
+  .sim-btn:last-child { margin-bottom: 0; }
+  .sim-btn .sb-tag { color: var(--amber); }
+  .sim-btn .sb-arrow { color: var(--text3); }
+  .sim-btn .sb-router { color: var(--accent); }
+  .sim-note {
+    font-family: var(--mono); font-size: 9px; color: var(--text3);
+    margin-top: 8px; line-height: 1.5;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="map-shell">
+
+  <!-- Map canvas -->
+  <div class="map-card">
+    <div class="map-toolbar">
+      <span class="map-toolbar-label">FLOOR PLAN</span>
+      <span class="map-toolbar-label" style="color:var(--text2)">
+        {{ profile.profile_desc if profile else '—' }}
+      </span>
+      <button class="config-mode-btn" id="cfg-btn" onclick="toggleConfigMode()">
+        Config Mode: OFF
+      </button>
+    </div>
+    <div class="map-area" id="map-area">
+      {% if map_filename %}
+      <img id="map-img" src="/static/maps/{{ map_filename }}" alt="floor plan"/>
+      {% else %}
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--text3)">
+          No map image.<br>
+          <a href="/configuration/maps" style="color:var(--accent)">Upload one →</a>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Right panel -->
+  <div class="right-panel">
+
+    <!-- Routers -->
+    <div class="card" style="padding:16px">
+      <div class="card-title">Routers</div>
+      <div class="node-list" id="router-list">
+        {% for r in routers %}
+        <div class="nl-item" id="nl-{{ r.node_id }}"
+             onclick="selectNode('{{ r.node_id }}')">
+          <div class="nl-top">
+            <span class="nl-id">{{ r.node_id }}</span>
+            <div class="nl-status" id="dot-{{ r.node_id }}"></div>
+          </div>
+          <div class="nl-via" id="via-{{ r.node_id }}">offline</div>
+        </div>
+        {% else %}
+        <div class="muted mono" style="font-size:11px">
+          No routers on this profile.<br>
+          <a href="/configuration/profiles" style="color:var(--accent)">Add →</a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Tags -->
+    <div class="card" style="padding:16px">
+      <div class="card-title">Tags</div>
+      <div class="node-list" id="tag-list">
+        <div class="muted mono" style="font-size:11px">No tags detected yet.</div>
+      </div>
+    </div>
+
+    <!-- Sensor popup -->
+    <div class="sensor-popup" id="sensor-popup" style="display:none">
+      <div class="sp-title" id="sp-node-id">NODE</div>
+      <div id="sp-readings"></div>
+    </div>
+
+    <!-- TEST SIMULATION PANEL (remove when board arrives) -->
+    {% if tags %}
+    <div class="sim-panel">
+      <div class="sim-title">Test Simulation</div>
+      {% for tag in tags %}
+        {% for r in routers %}
+        <button class="sim-btn"
+                onclick="simulateTag('{{ tag.node_id }}', '{{ r.node_id }}')">
+          <span class="sb-tag">{{ tag.node_id }}</span>
+          <span class="sb-arrow">→</span>
+          <span class="sb-router">{{ r.node_id }}</span>
+        </button>
+        {% endfor %}
+      {% endfor %}
+      <div class="sim-note">
+        Simulates tag movement for UI testing.<br>
+        Remove when WSN board is connected.
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const profileId = "{{ profile_id }}";
+
+  // x_pos/y_pos stored as 0.0–1.0, convert to 0–100% for CSS
+  const routerPositions = {
+    {% for r in routers %}
+    "{{ r.node_id }}": {
+      x: {{ (r.x_pos * 100) | round(3) }},
+      y: {{ (r.y_pos * 100) | round(3) }}
+    },
+    {% endfor %}
+  };
+
+  let configMode = false;
+  let tagNodes   = {};
+  const mapArea  = document.getElementById('map-area');
+
+  // ── Router markers ────────────────────────────────────
+  function renderRouterMarkers() {
+    document.querySelectorAll('.router-marker').forEach(e => e.remove());
+    Object.entries(routerPositions).forEach(([nodeId, pos]) => {
+      const el = document.createElement('div');
+      el.className = 'router-marker' + (configMode ? ' draggable' : '');
+      el.id = 'rm-' + nodeId;
+      el.style.left = pos.x + '%';
+      el.style.top  = pos.y + '%';
+      el.innerHTML = `
+        <div class="rm-ring" id="rmring-${nodeId}">
+          <div class="rm-inner"></div>
+        </div>
+        <div class="rm-label">${nodeId}</div>`;
+      el.addEventListener('click', () => { if (!configMode) selectNode(nodeId); });
+      if (configMode) makeDraggable(el, nodeId);
+      mapArea.appendChild(el);
+    });
+  }
+
+  // ── Drag & drop ───────────────────────────────────────
+  function makeDraggable(el, nodeId) {
+    let dragging = false, startX, startY, origLeft, origTop;
+    el.addEventListener('mousedown', e => {
+      dragging = true;
+      startX = e.clientX; startY = e.clientY;
+      origLeft = parseFloat(el.style.left);
+      origTop  = parseFloat(el.style.top);
+      e.preventDefault(); e.stopPropagation();
+    });
+    document.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      const rect = mapArea.getBoundingClientRect();
+      const newX = Math.max(2, Math.min(98,
+        origLeft + (e.clientX - startX) / rect.width  * 100));
+      const newY = Math.max(2, Math.min(98,
+        origTop  + (e.clientY - startY) / rect.height * 100));
+      el.style.left = newX + '%';
+      el.style.top  = newY + '%';
+      routerPositions[nodeId] = { x: newX, y: newY };
+    });
+    document.addEventListener('mouseup', async () => {
+      if (!dragging) return;
+      dragging = false;
+      const pos = routerPositions[nodeId];
+      try {
+        await fetch('/configuration/profiles/place_router', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `profile_id=${profileId}&node_id=${encodeURIComponent(nodeId)}`
+               + `&x_pos=${pos.x}&y_pos=${pos.y}`
+        });
+      } catch(e) { console.warn('Save failed', e); }
+    });
+  }
+
+  // ── Tag markers ───────────────────────────────────────
+  function getRouterCenter(routerId) {
+    const pos = routerPositions[routerId];
+    if (!pos) return { x: 50, y: 50 };
+    return {
+      x: Math.min(95, pos.x + 4),
+      y: Math.min(95, pos.y + 4)
+    };
+  }
+
+  function upsertTagMarker(nodeId, parentId) {
+    let el = document.getElementById('tm-' + nodeId);
+    const c = getRouterCenter(parentId);
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'tag-marker';
+      el.id = 'tm-' + nodeId;
+      el.innerHTML = `
+        <div class="tm-body"><div class="tm-dot"></div></div>
+        <div class="tm-label">${nodeId}</div>`;
+      el.addEventListener('click', () => selectNode(nodeId));
+      mapArea.appendChild(el);
+    }
+    el.style.left = c.x + '%';
+    el.style.top  = c.y + '%';
+  }
+
+  function pingRouter(routerId) {
+    const el = document.getElementById('rm-' + routerId);
+    if (!el) return;
+    el.classList.remove('pinged');
+    void el.offsetWidth;
+    el.classList.add('pinged');
+    setTimeout(() => el.classList.remove('pinged'), 900);
+  }
+
+  // ── Right-panel updates ───────────────────────────────
+  function updateRouterStatus(nodeId, isActive, viaNode) {
+    const dot = document.getElementById('dot-' + nodeId);
+    const via = document.getElementById('via-' + nodeId);
+    if (dot) dot.className = 'nl-status' + (isActive ? ' on' : '');
+    if (via) via.textContent = isActive
+      ? 'via ' + (viaNode || 'coordinator') : 'offline';
+  }
+
+  function updateTagList() {
+    const el = document.getElementById('tag-list');
+    const entries = Object.values(tagNodes);
+    if (!entries.length) {
+      el.innerHTML = '<div class="muted mono" style="font-size:11px">'
+                   + 'No tags detected yet.</div>';
+      return;
+    }
+    el.innerHTML = entries.map(t => `
+      <div class="nl-item" onclick="selectNode('${t.nodeId}')">
+        <div class="nl-top">
+          <span class="nl-id">${t.nodeId}</span>
+          <div class="nl-status on"></div>
+        </div>
+        <div class="nl-via">via ${t.parent}</div>
+      </div>`).join('');
+  }
+
+  // ── Sensor popup ──────────────────────────────────────
+  async function selectNode(nodeId) {
+    const popup = document.getElementById('sensor-popup');
+    popup.style.display = 'block';
+    document.getElementById('sp-node-id').textContent = nodeId;
+    document.getElementById('sp-readings').innerHTML =
+      '<div class="muted mono" style="font-size:11px">Loading…</div>';
+    try {
+      const r = await fetch(`/view/api/sensor/latest/${nodeId}`);
+      const data = await r.json();
+      if (!data.length) {
+        document.getElementById('sp-readings').innerHTML =
+          '<div class="muted mono" style="font-size:11px">'
+          + 'No sensor data yet.</div>';
+        return;
+      }
+      document.getElementById('sp-readings').innerHTML = data.map(s => `
+        <div class="sp-row">
+          <span class="sp-type">${s.sensor_type_id}</span>
+          <div>
+            <span class="sp-val">
+              ${parseFloat(s.real_value || 0).toFixed(1)}
+            </span>
+            <span class="sp-unit">${s.sensor_unit || ''}</span>
+          </div>
+        </div>`).join('');
+    } catch(e) {
+      document.getElementById('sp-readings').innerHTML =
+        '<div class="muted mono" style="font-size:11px;color:var(--red)">'
+        + 'No sensor data yet.</div>';
+    }
+  }
+
+  // ── Config mode ───────────────────────────────────────
+  function toggleConfigMode() {
+    configMode = !configMode;
+    const btn = document.getElementById('cfg-btn');
+    btn.textContent = 'Config Mode: ' + (configMode ? 'ON' : 'OFF');
+    btn.className = 'config-mode-btn' + (configMode ? ' active' : '');
+    renderRouterMarkers();
+    const tip = document.getElementById('drag-tip');
+    if (configMode && !tip) {
+      const t = document.createElement('div');
+      t.id = 'drag-tip';
+      t.style.cssText = 'position:absolute;bottom:10px;left:50%;'
+        + 'transform:translateX(-50%);font-family:var(--mono);'
+        + 'font-size:10px;color:var(--amber);'
+        + 'background:rgba(10,12,15,0.9);padding:5px 14px;'
+        + 'border-radius:2px;pointer-events:none;z-index:100;'
+        + 'border:1px solid rgba(255,171,0,0.3)';
+      t.textContent = 'Drag router circles to their physical positions';
+      mapArea.appendChild(t);
+    } else if (!configMode && tip) {
+      tip.remove();
+    }
+  }
+
+  // ── TEST: simulate tag movement ───────────────────────
+  async function simulateTag(nodeId, parentId) {
+    try {
+      const r = await fetch('/view/api/simulate_tag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ node_id: nodeId, parent_id: parentId })
+      });
+      const data = await r.json();
+      if (data.status === 'ok') {
+        // Update locally immediately (WebSocket will also fire)
+        tagNodes[nodeId] = { nodeId, parent: parentId };
+        upsertTagMarker(nodeId, parentId);
+        pingRouter(parentId);
+        updateTagList();
+      }
+    } catch(e) { console.warn('Simulate failed', e); }
+  }
+
+  // ── Load live nodes on open ───────────────────────────
+  async function loadLiveNodes() {
+    try {
+      const r = await fetch('/view/api/nodes/live');
+      const nodes = await r.json();
+      nodes.forEach(n => {
+        const isRouter = routerPositions.hasOwnProperty(n.node_id);
+        if (isRouter) {
+          updateRouterStatus(n.node_id, n.is_node_active === 'Y',
+                             n.parent_node_id);
+        } else {
+          tagNodes[n.node_id] = {
+            nodeId: n.node_id, parent: n.parent_node_id
+          };
+          upsertTagMarker(n.node_id, n.parent_node_id);
+        }
+      });
+      updateTagList();
+    } catch(e) { console.warn('loadLiveNodes failed', e); }
+  }
+
+  // ── WebSocket real-time updates ───────────────────────
+  window.onWsMessage = function(msg) {
+    if (msg.type === 'node_update') {
+      const d = msg.data;
+      const isRouter = routerPositions.hasOwnProperty(d.node_id);
+      if (isRouter) {
+        updateRouterStatus(d.node_id, d.is_active, d.parent_node_id);
+        if (d.is_active) pingRouter(d.node_id);
+      } else {
+        tagNodes[d.node_id] = {
+          nodeId: d.node_id, parent: d.parent_node_id
+        };
+        upsertTagMarker(d.node_id, d.parent_node_id);
+        pingRouter(d.parent_node_id);
+        updateTagList();
+      }
+    }
+  };
+
+  // Boot
+  renderRouterMarkers();
+  loadLiveNodes();
+</script>
+{% endblock %}

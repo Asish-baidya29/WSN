@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% set active = 'maps' %}
+{% block title %}Maps — WVS{% endblock %}
+{% block page_title %}Maps & Sites{% endblock %}
+{% block breadcrumb %}Configure / Maps{% endblock %}
+
+{% block content %}
+<div class="grid-2" style="margin-bottom:16px">
+
+  <div class="card">
+    <div class="card-title">Upload Floor Plan</div>
+    <form method="POST" action="/configuration/maps/upload"
+          enctype="multipart/form-data">
+      <div class="form-group">
+        <label class="form-label">Site ID</label>
+        <input class="form-control" type="text" name="site_id"
+               placeholder="e.g. SITE1, FLOOR1" required/>
+        <div class="muted mono" style="font-size:10px;margin-top:4px">
+          Short unique code — no spaces
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Site Name</label>
+        <input class="form-control" type="text" name="site_desc"
+               placeholder="e.g. Building A, Ground Floor" required/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Map Image</label>
+        <input class="form-control" type="file" name="map_file"
+               accept=".jpg,.jpeg,.png,.gif,.bmp" required
+               style="padding:7px 12px;cursor:pointer"/>
+        <div class="muted mono" style="font-size:10px;margin-top:4px">
+          JPG, PNG, GIF, BMP — any floor plan or simple layout image
+        </div>
+      </div>
+      <button class="btn btn-primary" type="submit">Upload Map</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Sites</div>
+    {% if sites %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Site ID</th><th>Name</th></tr>
+        </thead>
+        <tbody>
+          {% for s in sites %}
+          <tr>
+            <td class="mono">{{ s.site_id }}</td>
+            <td>{{ s.site_desc }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="muted mono" style="font-size:11px;padding:8px 0">
+      No sites uploaded yet.
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<div class="card">
+  <div class="card-title">Profiles</div>
+  {% if profiles %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Profile ID</th><th>Description</th><th>Site</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for p in profiles %}
+        <tr>
+          <td class="mono">{{ p.profile_id }}</td>
+          <td>{{ p.profile_desc }}</td>
+          <td class="mono">{{ p.site_id }}</td>
+          <td>
+            <a href="/view/map/{{ p.profile_id }}"
+               class="btn btn-outline btn-sm">Open Map →</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="muted mono" style="font-size:11px;padding:8px 0">
+    No profiles yet.
+    <a href="/configuration/profiles" style="color:var(--accent)">
+      Add a profile →
+    </a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

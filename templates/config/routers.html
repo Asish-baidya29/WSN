@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% set active = 'routers' %}
+{% block title %}Routers — WVS{% endblock %}
+{% block page_title %}Routers{% endblock %}
+{% block breadcrumb %}Configure / Routers{% endblock %}
+
+{% block content %}
+<div class="grid-2" style="margin-bottom:16px">
+
+  <div class="card">
+    <div class="card-title">Add Router</div>
+    <form method="POST" action="/configuration/routers/add">
+      <div class="form-group">
+        <label class="form-label">Router Node ID</label>
+        <input class="form-control" type="text" name="node_id"
+               placeholder="e.g. R1, R2" required/>
+        <div class="muted mono" style="font-size:10px;margin-top:5px">
+          Must match the address burned into the board
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Location (optional)</label>
+        <select class="form-control" name="location_id">
+          <option value="">— None —</option>
+          {% for loc in locations %}
+          <option value="{{ loc.location_id }}">{{ loc.location_desc }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn btn-primary" type="submit">Add Router</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Next Steps</div>
+    <div style="font-size:12px;line-height:1.8;color:var(--text2)">
+      After adding routers here, go to
+      <a href="/configuration/profiles" style="color:var(--accent)">Profiles</a>
+      to assign them to a floor plan.<br><br>
+      Then open the
+      <a href="/view" style="color:var(--accent)">Map View</a>,
+      enable <span class="badge badge-amber" style="font-size:10px">Config Mode</span>
+      and drag each router circle to its real position on the map image.
+    </div>
+  </div>
+
+</div>
+
+<div class="card">
+  <div class="card-title">Configured Routers</div>
+  {% if routers %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Router ID</th><th>Location</th><th>Live Status</th></tr>
+      </thead>
+      <tbody>
+        {% for r in routers %}
+        <tr>
+          <td class="mono">{{ r.node_id }}</td>
+          <td>{{ r.location or '—' }}</td>
+          <td>
+            <span class="badge badge-gray" id="rst-{{ r.node_id }}">Unknown</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="muted mono" style="font-size:11px;padding:8px 0">No routers configured.</div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.onWsMessage = function(msg) {
+    if (msg.type === 'node_update') {
+      const badge = document.getElementById('rst-' + msg.data.node_id);
+      if (badge) {
+        badge.textContent = msg.data.is_active ? 'ACTIVE' : 'INACTIVE';
+        badge.className = 'badge ' + (msg.data.is_active ? 'badge-green' : 'badge-gray');
+      }
+    }
+  };
+</script>
+{% endblock %}

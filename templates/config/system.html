@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% set active = 'system' %}
+{% block title %}System — WVS{% endblock %}
+{% block page_title %}System Properties{% endblock %}
+{% block breadcrumb %}Configure / System{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">System Configuration</div>
+  <div class="muted mono" style="font-size:11px;margin-bottom:20px;line-height:1.7">
+    Stored in <span class="accent-text">system_properties</span> table.
+    Changes take effect immediately. Set <span class="accent-text">COMPort</span>
+    to the port your coordinator is connected on (e.g. COM1, COM3, COM24).
+  </div>
+  <form method="POST" action="/configuration/system/update">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      {% for prop in props %}
+      <div class="form-group">
+        <label class="form-label">{{ prop.property }}</label>
+        <input class="form-control" type="text"
+               name="{{ prop.property }}"
+               value="{{ prop.value or '' }}"
+               placeholder="(empty)"/>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="margin-top:16px">
+      <button class="btn btn-primary" type="submit">Save Changes</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

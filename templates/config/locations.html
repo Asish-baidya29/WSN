@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% set active = 'locations' %}
+{% block title %}Locations — WVS{% endblock %}
+{% block page_title %}Locations{% endblock %}
+{% block breadcrumb %}Configure / Locations{% endblock %}
+
+{% block content %}
+<div class="grid-2">
+
+  <div class="card">
+    <div class="card-title">Add Location</div>
+    <form method="POST" action="/configuration/locations/add">
+      <div class="form-group">
+        <label class="form-label">Location ID</label>
+        <input class="form-control" type="text" name="location_id"
+               placeholder="e.g. LEFT, RIGHT, ROOM1" required
+               style="text-transform:uppercase"/>
+        <div class="muted mono" style="font-size:10px;margin-top:4px">
+          Short unique code — no spaces
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Location Name</label>
+        <input class="form-control" type="text" name="location_desc"
+               placeholder="e.g. Left Wing, Server Room" required/>
+      </div>
+      <button class="btn btn-primary" type="submit">Add Location</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Configured Locations</div>
+    {% if locations %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Name</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for loc in locations %}
+          <tr>
+            <td class="mono">{{ loc.location_id }}</td>
+            <td>{{ loc.location_desc }}</td>
+            <td>
+              <form method="POST" action="/configuration/locations/delete"
+                    style="display:inline">
+                <input type="hidden" name="location_id"
+                       value="{{ loc.location_id }}"/>
+                <button class="btn btn-danger btn-sm" type="submit"
+                        onclick="return confirm('Delete this location?')">
+                  Remove
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="muted mono" style="font-size:11px;padding:8px 0">
+      No locations added yet.
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

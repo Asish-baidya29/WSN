@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WVS — Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@300;400&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0a0c0f; --bg2: #111318; --bg3: #181c22;
+      --border: #252a33; --border2: #2e3440;
+      --accent: #00e5ff; --accent2: #00b8d4;
+      --green: #00e676; --red: #ff1744;
+      --text: #e0e6f0; --text2: #8892a4; --text3: #4a5568;
+      --mono: 'Share Tech Mono', monospace;
+      --sans: 'Barlow', sans-serif;
+      --cond: 'Barlow Condensed', sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh; background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--sans); color: var(--text);
+      overflow: hidden;
+    }
+
+    /* animated grid background */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      animation: gridmove 20s linear infinite;
+    }
+    @keyframes gridmove { 0%{background-position:0 0} 100%{background-position:40px 40px} }
+
+    /* corner decorations */
+    body::after {
+      content: '';
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background:
+        radial-gradient(ellipse 600px 400px at 20% 50%, rgba(0,229,255,0.04) 0%, transparent 70%),
+        radial-gradient(ellipse 400px 600px at 80% 20%, rgba(0,180,255,0.03) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .login-box {
+      position: relative; z-index: 1;
+      width: 380px;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      animation: fadein 0.6s ease both;
+    }
+    @keyframes fadein { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:none} }
+
+    /* top accent bar */
+    .login-box::before {
+      content: '';
+      display: block; height: 2px; width: 100%;
+      background: linear-gradient(90deg, var(--accent), transparent);
+      border-radius: 4px 4px 0 0;
+    }
+
+    .login-header {
+      padding: 28px 32px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .login-tag {
+      font-family: var(--mono); font-size: 10px; color: var(--accent);
+      letter-spacing: 3px; text-transform: uppercase; margin-bottom: 10px;
+    }
+    .login-title {
+      font-family: var(--cond); font-size: 26px; font-weight: 700;
+      color: var(--text); letter-spacing: 1px; line-height: 1;
+    }
+    .login-sub {
+      font-size: 12px; color: var(--text3); margin-top: 6px;
+      letter-spacing: 0.5px;
+    }
+
+    .login-body { padding: 28px 32px; }
+
+    .error-msg {
+      background: rgba(255,23,68,0.08);
+      border: 1px solid rgba(255,23,68,0.3);
+      border-left: 3px solid var(--red);
+      padding: 10px 14px; border-radius: 3px;
+      font-family: var(--mono); font-size: 11px; color: var(--red);
+      margin-bottom: 20px;
+    }
+
+    .form-group { margin-bottom: 18px; }
+    .form-label {
+      display: block; font-family: var(--mono); font-size: 10px;
+      color: var(--text3); letter-spacing: 2px; text-transform: uppercase;
+      margin-bottom: 7px;
+    }
+    .form-control {
+      width: 100%; background: var(--bg3);
+      border: 1px solid var(--border2); border-radius: 3px;
+      padding: 10px 14px; color: var(--text);
+      font-family: var(--mono); font-size: 13px; outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .form-control:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(0,229,255,0.1);
+    }
+
+    .btn-login {
+      width: 100%; padding: 11px;
+      background: var(--accent); color: var(--bg);
+      border: none; border-radius: 3px; cursor: pointer;
+      font-family: var(--cond); font-size: 14px; font-weight: 700;
+      letter-spacing: 2px; text-transform: uppercase;
+      transition: background 0.15s, transform 0.1s;
+      margin-top: 8px;
+    }
+    .btn-login:hover { background: var(--accent2); }
+    .btn-login:active { transform: scale(0.99); }
+
+    .login-footer {
+      padding: 14px 32px;
+      border-top: 1px solid var(--border);
+      font-family: var(--mono); font-size: 10px; color: var(--text3);
+      display: flex; justify-content: space-between;
+    }
+    .dot-online { color: var(--green); }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <div class="login-header">
+      <div class="login-tag">&#9632; WSN-EK v2.0</div>
+      <div class="login-title">PervTrack</div>
+      <div class="login-sub">Wireless Sensor Network Monitor</div>
+    </div>
+    <div class="login-body">
+      {% if error %}
+      <div class="error-msg">{{ error }}</div>
+      {% endif %}
+      <form method="POST" action="/login">
+        <div class="form-group">
+          <label class="form-label">Username</label>
+          <input class="form-control" type="text" name="username"
+                 autocomplete="username" autofocus placeholder="admin"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-control" type="password" name="password"
+                 autocomplete="current-password" placeholder="••••••"/>
+        </div>
+        <button class="btn-login" type="submit">Authenticate →</button>
+      </form>
+    </div>
+    <div class="login-footer">
+      <span>COM1 · MySQL 5</span>
+      <span class="dot-online">● SYSTEM READY</span>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% set active = 'profiles' %}
+{% block title %}Profiles — WVS{% endblock %}
+{% block page_title %}Profiles{% endblock %}
+{% block breadcrumb %}Configure / Profiles{% endblock %}
+
+{% block content %}
+<div class="grid-2" style="margin-bottom:16px">
+
+  <!-- Create profile -->
+  <div class="card">
+    <div class="card-title">Create Profile</div>
+    <form method="POST" action="/configuration/profiles/add">
+      <div class="form-group">
+        <label class="form-label">Profile ID</label>
+        <input class="form-control" type="text" name="profile_id"
+               placeholder="e.g. floor1" required/>
+        <div class="muted mono" style="font-size:10px;margin-top:4px">
+          Lowercase, no spaces
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <input class="form-control" type="text" name="profile_desc"
+               placeholder="e.g. Ground Floor" required/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Site / Map</label>
+        <select class="form-control" name="site_id" required>
+          <option value="">— Select a site —</option>
+          {% for s in sites %}
+          <option value="{{ s.site_id }}">{{ s.site_id }} — {{ s.site_desc }}</option>
+          {% endfor %}
+        </select>
+        {% if not sites %}
+        <div class="muted mono" style="font-size:10px;margin-top:4px">
+          No sites yet.
+          <a href="/configuration/maps" style="color:var(--accent)">
+            Upload a map first →
+          </a>
+        </div>
+        {% endif %}
+      </div>
+      <button class="btn btn-primary" type="submit">Create Profile</button>
+    </form>
+  </div>
+
+  <!-- Setup guide -->
+  <div class="card">
+    <div class="card-title">Setup Order</div>
+    <div style="font-size:12px;line-height:2;color:var(--text2)">
+      <div>
+        <span class="badge badge-cyan" style="font-size:10px;margin-right:6px">1</span>
+        Upload map in
+        <a href="/configuration/maps" style="color:var(--accent)">Maps</a>
+      </div>
+      <div>
+        <span class="badge badge-cyan" style="font-size:10px;margin-right:6px">2</span>
+        Add routers in
+        <a href="/configuration/routers" style="color:var(--accent)">Routers</a>
+      </div>
+      <div>
+        <span class="badge badge-cyan" style="font-size:10px;margin-right:6px">3</span>
+        Create profile here and add routers to it
+      </div>
+      <div>
+        <span class="badge badge-cyan" style="font-size:10px;margin-right:6px">4</span>
+        Open Map → Config Mode → drag routers to position
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Profiles list with router management -->
+{% if profiles %}
+{% for p in profiles %}
+<div class="card" style="margin-bottom:16px">
+  <div class="flex-between mb-16">
+    <div>
+      <div style="font-family:var(--cond);font-size:16px;font-weight:600;color:var(--text)">
+        {{ p.profile_desc }}
+        <span class="mono muted" style="font-size:11px;margin-left:8px">
+          {{ p.profile_id }}
+        </span>
+      </div>
+      <div class="mono muted" style="font-size:11px;margin-top:2px">
+        Site: {{ p.site_desc }}
+      </div>
+    </div>
+    <a href="/view/map/{{ p.profile_id }}" class="btn btn-outline btn-sm">
+      Open Map →
+    </a>
+  </div>
+
+  <!-- Routers in this profile -->
+  <div style="margin-bottom:12px">
+    <div class="muted mono" style="font-size:10px;letter-spacing:1.5px;
+         text-transform:uppercase;margin-bottom:8px">
+      Routers on this profile
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      {% set ns = namespace(found=false) %}
+      {% for pr in profile_routers %}
+        {% if pr.profile_id == p.profile_id %}
+          {% set ns.found = true %}
+          <div style="display:flex;align-items:center;gap:6px;
+               background:var(--bg3);border:1px solid var(--border);
+               border-radius:var(--radius);padding:6px 10px">
+            <span class="mono" style="font-size:12px;color:var(--text)">
+              {{ pr.node_id }}
+            </span>
+            <form method="POST" action="/configuration/profiles/remove_router"
+                  style="display:inline;margin:0">
+              <input type="hidden" name="profile_id" value="{{ p.profile_id }}"/>
+              <input type="hidden" name="node_id" value="{{ pr.node_id }}"/>
+              <button type="submit"
+                      style="background:none;border:none;cursor:pointer;
+                             color:var(--red);font-size:12px;padding:0;
+                             line-height:1"
+                      title="Remove from profile">✕</button>
+            </form>
+          </div>
+        {% endif %}
+      {% endfor %}
+      {% if not ns.found %}
+      <span class="muted mono" style="font-size:11px">
+        No routers added yet
+      </span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Add router to this profile -->
+  {% if all_routers %}
+  <form method="POST" action="/configuration/profiles/add_router"
+        style="display:flex;gap:10px;align-items:flex-end">
+    <input type="hidden" name="profile_id" value="{{ p.profile_id }}"/>
+    <div class="form-group" style="margin-bottom:0;flex:1">
+      <label class="form-label">Add Router to Profile</label>
+      <select class="form-control" name="node_id" required>
+        <option value="">— Select router —</option>
+        {% for r in all_routers %}
+        <option value="{{ r.node_id }}">{{ r.node_id }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-outline btn-sm" type="submit"
+            style="margin-bottom:0;white-space:nowrap">
+      + Add to Map
+    </button>
+  </form>
+  {% else %}
+  <div class="muted mono" style="font-size:11px">
+    No routers configured.
+    <a href="/configuration/routers" style="color:var(--accent)">Add routers first →</a>
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% else %}
+<div class="card">
+  <div class="muted mono" style="font-size:11px;padding:8px 0">
+    No profiles yet. Create one above.
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

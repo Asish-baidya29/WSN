@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% set active = 'sensors' %}
+{% block title %}Sensors — WVS{% endblock %}
+{% block page_title %}Sensor Types{% endblock %}
+{% block breadcrumb %}Configure / Sensors{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">Supported Sensor Types</div>
+  <div class="muted mono" style="font-size:11px;margin-bottom:16px;line-height:1.7">
+    Calibration data (raw ADC 0–127 → real-world values) is pre-loaded
+    from <span class="accent-text">sensor_data_lkp</span> in wvs.sql.
+    To assign a sensor to a tag channel go to
+    <a href="/configuration/tags" style="color:var(--accent)">Tags</a>.
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Type ID</th>
+          <th>Description</th>
+          <th>Unit (uom)</th>
+          <th>Raw Range</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for st in sensor_types %}
+        <tr>
+          <td><span class="badge badge-cyan">{{ st.sensor_type_id }}</span></td>
+          <td>{{ st.sensor_type_desc }}</td>
+          <td class="mono">{{ st.uom }}</td>
+          <td class="mono muted">0 – 127</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
