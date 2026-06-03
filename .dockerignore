@@ -1,0 +1,6 @@
+venv/
+__pycache__/
+.git/
+*.pyc
+.DS_Store
+start.bat

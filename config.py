@@ -2,17 +2,19 @@
 # WVS System Configuration
 # =============================================================================
 
+import os
+
 # --- Serial Port (Coordinator) ---
-SERIAL_PORT = "COM3"
-SERIAL_BAUD_RATE = 9600        # standard ZigBee coordinator baud rate
+SERIAL_PORT = os.environ.get("WVS_SERIAL_PORT", "COM3")
+SERIAL_BAUD_RATE = int(os.environ.get("WVS_SERIAL_BAUD", "9600"))
 SERIAL_TIMEOUT = 1             # seconds
 
 # --- MySQL Database (version 5) ---
-DB_HOST = "localhost"
-DB_PORT = 3306
-DB_NAME = "wvs"
-DB_USER = "admin"
-DB_PASSWORD = "admin"
+DB_HOST = os.environ.get("WVS_DB_HOST", "localhost")
+DB_PORT = int(os.environ.get("WVS_DB_PORT", "3306"))
+DB_NAME = os.environ.get("WVS_DB_NAME", "wvs")
+DB_USER = os.environ.get("WVS_DB_USER", "admin")
+DB_PASSWORD = os.environ.get("WVS_DB_PASSWORD", "admin")
 
 # Build the SQLAlchemy connection URL for MySQL 5 via PyMySQL driver
 DATABASE_URL = (

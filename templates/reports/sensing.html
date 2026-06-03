@@ -5,49 +5,46 @@
 
 {% block head %}
 <style>
-  .report-layout { display: grid; grid-template-columns: 260px 1fr; gap: 16px; }
+  .report-layout { display: grid; grid-template-columns: 260px 1fr; gap: 20px; }
 
-  /* Filter panel */
-  .filter-panel { display: flex; flex-direction: column; gap: 12px; }
+  .filter-panel { display: flex; flex-direction: column; gap: 16px; }
 
-  /* Gap selector */
-  .gap-options { display: flex; flex-direction: column; gap: 6px; }
+  .gap-options { display: flex; flex-direction: column; gap: 8px; }
   .gap-opt {
     display: flex; align-items: center; gap: 10px;
-    padding: 8px 12px; background: var(--bg3);
-    border: 1px solid var(--border); border-radius: var(--radius);
-    cursor: pointer; transition: all 0.15s; font-family: var(--mono); font-size: 12px; color: var(--text2);
+    padding: 10px 14px; background: var(--bg3);
+    border: 1px solid var(--border); border-radius: 6px;
+    cursor: pointer; transition: all 0.12s; font-size: 13px; color: var(--text2);
   }
   .gap-opt:hover { border-color: var(--accent); color: var(--accent); }
-  .gap-opt.selected { border-color: var(--accent); background: rgba(0,229,255,0.08); color: var(--accent); }
+  .gap-opt.selected { border-color: var(--accent); background: rgba(45,212,191,0.06); color: var(--accent); }
   .gap-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border2); }
-  .gap-opt.selected .gap-dot { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+  .gap-opt.selected .gap-dot { background: var(--accent); }
 
-  /* Data table */
-  #report-table { font-size: 12px; }
-  #report-table th { font-size: 9px; }
-  #report-table td { padding: 7px 12px; }
-
-  /* Summary bar */
-  .summary-row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .summary-row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
   .sum-tile {
-    background: var(--bg3); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 10px 14px;
-    font-family: var(--mono); font-size: 10px; color: var(--text3);
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 18px;
+    font-size: 11px; color: var(--text3);
+    min-width: 100px;
   }
-  .sum-tile .sv { font-family: var(--cond); font-size: 18px; font-weight: 600; color: var(--text); display: block; margin-top: 2px; }
+  .sum-tile .sv { font-size: 22px; font-weight: 700; color: var(--text); display: block; margin-top: 4px; }
+  .sum-tile.temp { border-left: 3px solid rgba(239,68,68,0.4); }
+  .sum-tile.hum  { border-left: 3px solid rgba(59,130,246,0.4); }
 
-  /* Loading state */
+  #report-table { font-size: 13px; }
+  #report-table th { font-size: 11px; }
+  #report-table td { padding: 10px 14px; }
+
   .loading-bar {
     height: 2px; background: var(--accent);
     animation: loadbar 1s ease infinite alternate;
-    border-radius: 1px; margin-bottom: 12px;
+    border-radius: 2px; margin-bottom: 16px;
     display: none;
   }
   @keyframes loadbar { from{width:20%} to{width:90%} }
   .loading-bar.active { display: block; }
 
-  /* Export btn */
   #export-btn { margin-left: auto; }
 </style>
 {% endblock %}
@@ -55,7 +52,6 @@
 {% block content %}
 <div class="report-layout">
 
-  <!-- Filter panel -->
   <div class="filter-panel">
     <div class="card">
       <div class="card-title">Node</div>
@@ -68,7 +64,7 @@
     </div>
 
     <div class="card">
-      <div class="card-title">Time Gap Filter</div>
+      <div class="card-title">Time Gap</div>
       <div class="gap-options" id="gap-options">
         {% for g in gap_options %}
         <div class="gap-opt {% if g==0 %}selected{% endif %}"
@@ -94,26 +90,24 @@
     </button>
   </div>
 
-  <!-- Report area -->
-  <div style="display:flex;flex-direction:column;gap:12px">
+  <div style="display:flex;flex-direction:column;gap:16px">
     <div class="loading-bar" id="loading-bar"></div>
 
-    <!-- Summary -->
     <div class="summary-row" id="summary-row" style="display:none">
       <div class="sum-tile">Rows <span class="sv" id="sum-rows">—</span></div>
-      <div class="sum-tile" style="border-color:rgba(255,80,80,0.3)">Min Temp <span class="sv" id="sum-temp-min">—</span></div>
-      <div class="sum-tile" style="border-color:rgba(255,80,80,0.3)">Max Temp <span class="sv" id="sum-temp-max">—</span></div>
-      <div class="sum-tile" style="border-color:rgba(255,80,80,0.3)">Avg Temp <span class="sv" id="sum-temp-avg">—</span></div>
-      <div class="sum-tile" style="border-color:rgba(80,180,255,0.3)">Min Hum <span class="sv" id="sum-hum-min">—</span></div>
-      <div class="sum-tile" style="border-color:rgba(80,180,255,0.3)">Max Hum <span class="sv" id="sum-hum-max">—</span></div>
-      <div class="sum-tile" style="border-color:rgba(80,180,255,0.3)">Avg Hum <span class="sv" id="sum-hum-avg">—</span></div>
+      <div class="sum-tile temp">Min Temp <span class="sv" id="sum-temp-min">—</span></div>
+      <div class="sum-tile temp">Max Temp <span class="sv" id="sum-temp-max">—</span></div>
+      <div class="sum-tile temp">Avg Temp <span class="sv" id="sum-temp-avg">—</span></div>
+      <div class="sum-tile hum">Min Hum <span class="sv" id="sum-hum-min">—</span></div>
+      <div class="sum-tile hum">Max Hum <span class="sv" id="sum-hum-max">—</span></div>
+      <div class="sum-tile hum">Avg Hum <span class="sv" id="sum-hum-avg">—</span></div>
       <button class="btn btn-outline btn-sm" id="export-btn" onclick="exportCSV()">Export CSV</button>
     </div>
 
     <div class="card" style="flex:1">
       <div class="flex-between mb-16">
         <div class="card-title" style="margin-bottom:0">Data</div>
-        <span class="muted mono" style="font-size:10px" id="result-info">Select a node to load data</span>
+        <span class="muted mono" style="font-size:11px" id="result-info">Select a node to load data</span>
       </div>
       <div class="table-wrap">
         <table id="report-table">
@@ -123,12 +117,13 @@
               <th>Channel</th>
               <th>Sensor</th>
               <th>Raw</th>
-              <th>Value</th>
+              <th>Volt</th>
+              <th>Degree_Centigrade</th>
               <th>Unit</th>
             </tr>
           </thead>
           <tbody id="report-tbody">
-            <tr><td colspan="6" class="muted mono" style="font-size:11px">No data loaded.</td></tr>
+            <tr><td colspan="7" class="muted mono" style="font-size:11px">No data loaded.</td></tr>
           </tbody>
         </table>
       </div>
@@ -174,22 +169,23 @@
     document.getElementById('result-info').textContent = data.length + ' rows';
 
     if (!data.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="muted mono" style="font-size:11px">No data found.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="muted mono" style="font-size:11px">No data found.</td></tr>';
       return;
     }
 
     tbody.innerHTML = data.map(row => {
       const raw = parseFloat(row.node_data);
-      const val = (row.real_value != null && !isNaN(parseFloat(row.real_value)))
-        ? parseFloat(row.real_value).toFixed(2)
-        : raw.toFixed(0);
-      const unit = row.sensor_unit || (row.sensor_type_id === 'T' ? 'C' : row.sensor_type_id === 'H' ? '%' : '');
+      const isTemp = row.sensor_type_id === 'T';
+      const volt = isTemp && row.volt != null ? parseFloat(row.volt).toFixed(4) : '—';
+      const degC = isTemp && row.degree_centigrade != null ? parseFloat(row.degree_centigrade).toFixed(2) : '—';
+      const unit = row.sensor_unit || (isTemp ? 'C' : row.sensor_type_id === 'H' ? '%' : '');
       return `<tr>
         <td class="mono" style="font-size:11px">${row.receive_time}</td>
         <td class="mono">${row.channel}</td>
         <td><span class="badge badge-cyan">${row.sensor_type_id}</span></td>
         <td class="mono muted">${raw.toFixed(0)}</td>
-        <td class="mono" style="color:var(--text)">${val}</td>
+        <td class="mono" style="color:var(--text)">${volt}</td>
+        <td class="mono" style="color:var(--text)">${degC}</td>
         <td class="mono muted">${unit}</td>
       </tr>`;
     }).join('');
@@ -203,12 +199,20 @@
     document.getElementById('summary-row').style.display = 'flex';
     document.getElementById('sum-rows').textContent = data.length;
 
-    const toVal = r => {
-      const v = parseFloat(r.real_value);
-      return isNaN(v) ? parseFloat(r.node_data) : v;
-    };
-    const temp = data.filter(r => r.sensor_type_id === 'T').map(toVal).filter(v => !isNaN(v));
-    const hum  = data.filter(r => r.sensor_type_id === 'H').map(toVal).filter(v => !isNaN(v));
+    // Temperature: use degree_centigrade
+    const temp = data
+      .filter(r => r.sensor_type_id === 'T')
+      .map(r => parseFloat(r.degree_centigrade))
+      .filter(v => !isNaN(v));
+
+    // Humidity: use real_value (from sensor_data_lkp) else raw
+    const hum = data
+      .filter(r => r.sensor_type_id === 'H')
+      .map(r => {
+        const v = parseFloat(r.real_value);
+        return isNaN(v) ? parseFloat(r.node_data) : v;
+      })
+      .filter(v => !isNaN(v));
 
     const stats = (arr) => arr.length ? {
       min: Math.min(...arr).toFixed(1),
@@ -229,15 +233,22 @@
   window.onWsMessage = function(msg) {
     if (msg.type !== 'sensor_update') return;
     const s = msg.data;
-    // Only auto-append if viewing this node
     if (s.node_id !== document.getElementById('node-select').value) return;
+    const raw = parseFloat(s.raw_value);
+    let volt = null, degC = null;
+    if (s.sensor_type === 'T' && !isNaN(raw)) {
+      volt = (raw / 127.0) * 2.56;
+      degC = ((volt * 1000.0) - 500.0) / 10.0;
+    }
     const newRow = {
       channel: s.channel,
       node_data: s.raw_value,
       receive_time: s.receive_time,
       sensor_type_id: s.sensor_type,
       real_value: s.real_value,
-      sensor_unit: s.sensor_type === 'T' ? 'C' : s.sensor_type === 'H' ? '%' : ''
+      sensor_unit: s.sensor_type === 'T' ? 'C' : s.sensor_type === 'H' ? '%' : '',
+      volt: volt != null ? volt.toFixed(4) : null,
+      degree_centigrade: degC != null ? degC.toFixed(2) : null
     };
     reportData.unshift(newRow);
     if (reportData.length > 1000) reportData.length = 1000;
@@ -247,11 +258,26 @@
 
   function exportCSV() {
     if (!reportData.length) return;
-    const headers = ['Time','Channel','Sensor','Raw','Value','Unit'];
-    const rows = reportData.map(r => [
-      r.receive_time, r.channel, r.sensor_type_id,
-      r.node_data, r.real_value || r.node_data, r.sensor_unit || ''
-    ]);
+    const headers = ['Time','Channel','Sensor','Raw','Volt','Degree_Centigrade','Unit'];
+    const rows = reportData.map(r => {
+      const raw = parseFloat(r.node_data);
+      const isTemp = r.sensor_type_id === 'T';
+      let volt, degC;
+      if (isTemp && !isNaN(raw)) {
+        volt = (raw / 127.0) * 2.56;
+        degC = ((volt * 1000.0) - 500.0) / 10.0;
+      } else {
+        volt = null;
+        degC = null;
+      }
+      return [
+        r.receive_time, r.channel, r.sensor_type_id,
+        raw.toFixed(0),
+        volt != null ? volt.toFixed(4) : '',
+        degC != null ? degC.toFixed(2) : '',
+        r.sensor_unit || (isTemp ? 'C' : r.sensor_type_id === 'H' ? '%' : '')
+      ];
+    });
     const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
     const a = document.createElement('a');
     a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);

@@ -47,10 +47,32 @@ Incoming ASCII lines from COM port, fields delimited by `**`:
 
 ### Raw-to-Value Conversion
 
-Sensor readings (0–127) are converted to real-world values via the `sensor_data_lkp` table:
+Sensor raw readings (0–127) are converted in the backend API (`reports.py`):
 
-- **Temperature**: `mapped_data = (node_data - 25) × 2.075` (unit: °C)
-- **Humidity**: `mapped_data = ((node_data - 26) × 96 + 115) / 100` (unit: %)
+#### Temperature
+
+```text
+Volt = (Raw / 127) * 2.56
+Degree_Centigrade = ((Volt * 1000) - 500) / 10
+```
+
+Example: Raw = 46
+
+```text
+Volt = (46 / 127) * 2.56 = 0.9272 V
+Degree_Centigrade = ((0.9272 * 1000) - 500) / 10 = 42.72 °C
+```
+
+#### Humidity
+
+No conversion — the raw value IS the humidity percentage.
+
+```text
+Volt = NULL
+Degree_Centigrade = NULL
+```
+
+Example: Raw = 51 → Humidity = 51%
 
 ## Prerequisites
 
@@ -58,7 +80,104 @@ Sensor readings (0–127) are converted to real-world values via the `sensor_dat
 - MySQL 5.7+ (database named `wvs`)
 - A ZigBee coordinator on a COM port (default: `COM3` at 9600 baud)
 
-## Setup
+---
+
+## Docker Setup (Recommended)
+
+Docker runs both the app and MySQL 5.7 in containers — no need to install Python, MySQL, or dependencies manually.
+
+### Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows / macOS / Linux)
+
+### 1. Build and start
+
+```bash
+docker compose up -d
+```
+
+This starts two containers:
+
+| Container | Image | Port |
+|-----------|-------|------|
+| `wvs-mysql` | mysql:5.7 | `3307` (host) → `3306` (container) |
+| `wvs-app` | built from `Dockerfile` | `8080` → `8080` |
+
+The MySQL container automatically:
+- Creates the `wvs` database
+- Creates all tables, stored procedures, and functions
+- Seeds sensor types, lookup data, default tags/routers, and user `admin`/`admin`
+
+### 2. Open the web UI
+
+```
+http://localhost:8080
+```
+
+Login: `admin` / `admin`
+
+### 3. Stop
+
+```bash
+docker compose down
+```
+
+Add `-v` to also delete volumes (database data + uploaded maps):
+
+```bash
+docker compose down -v
+```
+
+### Viewing logs
+
+```bash
+docker compose logs -f
+```
+
+### Building without compose
+
+If you want to run only the app container and connect to your own MySQL:
+
+```bash
+docker build -t wvs-app .
+docker run -d -p 8080:8080 \
+  -e WVS_DB_HOST=host.docker.internal \
+  -e WVS_DB_PORT=3306 \
+  -e WVS_DB_USER=admin \
+  -e WVS_DB_PASSWORD=admin \
+  -e WVS_SERIAL_PORT=COM3 \
+  --name wvs-app wvs-app
+```
+
+On Linux replace `host.docker.internal` with your host IP or use `--network host`.
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WVS_DB_HOST` | `localhost` | MySQL hostname |
+| `WVS_DB_PORT` | `3306` | MySQL port |
+| `WVS_DB_NAME` | `wvs` | Database name |
+| `WVS_DB_USER` | `admin` | MySQL user |
+| `WVS_DB_PASSWORD` | `admin` | MySQL password |
+| `WVS_SERIAL_PORT` | `COM3` | ZigBee coordinator port path |
+| `WVS_SERIAL_BAUD` | `9600` | Baud rate |
+
+### Serial Port in Docker
+
+- **Windows**: COM ports cannot be easily forwarded to containers. Run the listener natively (use the manual setup below) or use a COM-to-TCP bridge.
+- **Linux**: Pass the device into the container by adding this to `docker-compose.yml` under the `app` service:
+  ```yaml
+  devices:
+    - "/dev/ttyUSB0:/dev/ttyUSB0"
+  ```
+  Then set `WVS_SERIAL_PORT=/dev/ttyUSB0`.
+
+If no serial device is connected, the app still works — the listener thread logs an error and retries every 5 seconds.
+
+---
+
+## Manual Setup
 
 ### 1. Clone and install
 
@@ -195,6 +314,47 @@ ON DUPLICATE KEY UPDATE mapped_data = VALUES(mapped_data);
 INSERT INTO user_master (user_id, password, administrator)
 VALUES ('admin', 'admin', 'Y');
 ```
+
+## Map Upload & Floor Plan Setup
+
+The live map view shows router positions on a floor plan image. Here's how to set it up:
+
+### 1. Upload a map image
+
+Go to **Configuration → Maps** (`/configuration/maps`):
+
+| Field | Example | Description |
+|-------|---------|-------------|
+| Site ID | `FLOOR1` | Short unique code (no spaces) |
+| Site Name | `Building A, Ground Floor` | Readable description |
+| Map Image | `floorplan.jpg` | JPG, PNG, GIF, or BMP |
+
+The image is stored in `static/maps/` and associated with the Site ID.
+
+### 2. Create a profile
+
+Go to **Configuration → Profiles** (`/configuration/profiles`):
+
+1. Enter a **Profile Description** (e.g. "Ground Floor Sensors")
+2. Select a **Site** (the one you just created)
+3. Click **Add Profile**
+
+### 3. Assign routers to the profile
+
+On the same Profiles page, for each router in the profile's "Routers" section, click **Add Router** and select a router node.
+
+### 4. Position routers on the map
+
+Go to **Monitor → Live View** (`/view`) and click the profile name to open the map:
+
+1. Click **Config Mode: OFF** to toggle drag mode ON
+2. Drag each router circle to its physical location on the floor plan
+3. Positions are saved automatically when you stop dragging
+4. Toggle Config Mode OFF when done
+
+### 5. Live tracking
+
+When end devices (tags) are detected by routers, they appear as amber dots that move dynamically between router positions on the map.
 
 ## Running
 

@@ -15,6 +15,31 @@ templates = Jinja2Templates(directory="templates")
 GAP_OPTIONS = [0, 5, 10, 30, 60]
 
 
+def compute_temp(raw: float) -> dict:
+    volt = (raw / 127.0) * 2.56
+    deg_c = ((volt * 1000.0) - 500.0) / 10.0
+    return {
+        "volt": round(volt, 4),
+        "degree_centigrade": round(deg_c, 2),
+    }
+
+
+def enrich_row(row: dict) -> dict:
+    raw = row.get("node_data")
+    try:
+        raw_f = float(raw)
+    except (TypeError, ValueError):
+        raw_f = 0.0
+    if row.get("sensor_type_id") == "T":
+        comp = compute_temp(raw_f)
+        row["volt"] = comp["volt"]
+        row["degree_centigrade"] = comp["degree_centigrade"]
+    else:
+        row["volt"] = None
+        row["degree_centigrade"] = None
+    return row
+
+
 @router.get("/", response_class=HTMLResponse)
 async def reports_page(request: Request, db: Session = Depends(get_db)):
     user = request.session.get("user")
@@ -79,6 +104,10 @@ async def sensor_history(
             "LIMIT :lim",
             {"nid": node_id, "gap": gap_seconds, "lim": limit}
         )
+
+    for row in rows:
+        enrich_row(row)
+
     return JSONResponse(content=rows)
 
 

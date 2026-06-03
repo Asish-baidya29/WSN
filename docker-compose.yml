@@ -1,0 +1,46 @@
+version: "3.8"
+
+services:
+  mysql:
+    image: mysql:5.7
+    container_name: wvs-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: wvs
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: wvs-app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      WVS_DB_HOST: mysql
+      WVS_DB_PORT: "3306"
+      WVS_DB_NAME: wvs
+      WVS_DB_USER: admin
+      WVS_DB_PASSWORD: admin
+      WVS_SERIAL_PORT: /dev/ttyUSB0
+      WVS_SERIAL_BAUD: "9600"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - maps_data:/app/static/maps
+
+volumes:
+  mysql_data:
+  maps_data:
