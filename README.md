@@ -43,7 +43,6 @@ Incoming ASCII lines from COM port, fields delimited by `**`:
 |------------|-------------|----|
 | `S0...` | Temperature | `T` |
 | `S1...` | Humidity | `H` |
-| `S2...` | Carbon Monoxide | `CO` |
 
 ### Raw-to-Value Conversion
 
